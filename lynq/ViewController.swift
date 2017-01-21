@@ -1,5 +1,4 @@
 import UIKit
-import CoreLocation
 
 // http://stackoverflow.com/questions/642555/how-do-i-calculate-the-azimuth-angle-to-north-between-two-wgs84-coordinates
 
@@ -37,13 +36,28 @@ extension UIBezierPath {
     }
 }
 
-class LYNQ {
+
+
+/// all static methods in BobStuff
+
+
+struct BobStuff {
+    struct IOS {
+        
+        /// these scale a gps point into the screen coordinate system
+        static func pointToGPSLocation(_ p:CGPoint,frame:CGRect) -> CGPoint{
+            //running +-10 around 0 0 in CLLocation
+            let lat = p.x/frame.width * 20 - 10
+            let lon = p.y/frame.height * 20 - 10
+            return CGPoint(x: lat, y: lon)
+        }
+    }
     
-    struct OSIndependent {
+    struct Kore {
         
         static func degreesToRadians(_ degrees: Double) -> Double { return degrees * M_PI / 180.0 }
         static func radiansToDegrees(_ radians: Double) -> Double { return radians * 180.0 / M_PI }
-        
+ 
         static func makeView(_ id:String, _ distance: String,_ bearing:CGFloat, _ frame:CGRect,
                              _ tailWidth: Int,_ headWidth: Int,_ headLength: Int,
                              _ color1:UIColor,_ color2:UIColor) -> UIView  {
@@ -53,49 +67,51 @@ class LYNQ {
             let labelframe1 = CGRect(x: 0, y: 1*len/10, width: len, height: len/10)
             let labelframe2 = CGRect(x: 0, y: 8*len/10, width: len, height: len/10)
             
-            let bview = UIView(frame:rect)
-            bview.backgroundColor = color1
+            // arrow always starts in center, but azimuth determines direction
+            let radius = len/2
+            let azimuth = CGFloat(degreesToRadians(Double(bearing)))
+            let endX = cos(azimuth) * radius + centerpoint.x
+            let endY = sin(azimuth) * radius + centerpoint.y
+            let topoint = CGPoint(x: endX, y: endY)
+          
+           // print("bearing \(bearing) (\(centerpoint.x), \(centerpoint.y)) radius \(radius) => (\(endX), \(endY))") 
             
+            let arrow = UIBezierPath.arrow(from: centerpoint,
+                                           to: topoint,
+                                           tailWidth: CGFloat(tailWidth),
+                                           headWidth: CGFloat(headWidth),
+                                           headLength: CGFloat(headLength))
             
             let path = UIBezierPath(ovalIn: rect).cgPath
             let circle = CAShapeLayer()
             circle.path = path
             circle.fillColor = color2.cgColor
-            bview.layer.addSublayer(circle)
-            
-            // arrow always starts in center, but azimuth determines direction
-            
-            let endX = cos(bearing) * len/2 + centerpoint.x
-            let endY = sin(bearing) * len/2 + centerpoint.y
-            
-            
-            //let end = CGPointMake(endX, endY);
-            let topoint = CGPoint(x: endX, y: endY)
-            
-            
-            let arrow = UIBezierPath.arrow(from: centerpoint,
-                                           to: topoint,
-                                           tailWidth: CGFloat(tailWidth), headWidth: CGFloat(headWidth), headLength: CGFloat(headLength))
+            circle.strokeColor = UIColor.red.cgColor
+            circle.lineWidth = 2.0
+
             
             let shapeLayer = CAShapeLayer()
             shapeLayer.path = arrow.cgPath
             shapeLayer.fillColor = color1.cgColor
             shapeLayer.strokeColor = color2.cgColor
             shapeLayer.lineWidth = 2.0
-            bview.layer.addSublayer(shapeLayer)
             
             let label1 = UILabel(frame:labelframe1)
             label1.text = id
             label1.textAlignment = .center
             label1.textColor = color1
-            bview.addSubview(label1)
             
             let label2 = UILabel(frame:labelframe2)
             label2.text = distance
             label2.textAlignment = .center
             label2.textColor = color1
-            bview.addSubview(label2)
             
+            let bview = UIView(frame:rect)
+            bview.backgroundColor = color2
+            bview.layer.addSublayer(circle)
+            bview.layer.addSublayer(shapeLayer)
+            bview.addSubview(label1)
+            bview.addSubview(label2)
             return bview
         }
         static func distanceHaversine(point1 : CGPoint, point2 : CGPoint)->Double {
@@ -134,75 +150,62 @@ class LYNQ {
             let dLonrad = lon2rad - lon1rad
             let dLatrad = lat2rad - lat1rad
             
-            // let y = sin(dLonrad) * cos(lat2rad)
-            //let x = cos(lat1rad) * sin(lat2rad) - sin(lat1rad) * cos(lat2rad) * cos(dLonrad)
-            
-            //let radiansBearing = atan2(y, x)
-            
             let radiansBearing = atan2(dLonrad, dLatrad)
-            var bearingDegrees =  (radiansToDegrees(radiansBearing) + 90).truncatingRemainder(dividingBy: 360)
-            
-            bearingDegrees = bearingDegrees < 0.0 ? (bearingDegrees +  360.0 ) : ( bearingDegrees) // correct discontinuity
+            let bearingDegrees =  (radiansToDegrees(radiansBearing) + 360).truncatingRemainder(dividingBy: 360)
             return bearingDegrees
             
         }
     }
 }
 
-/// TESTING - opens directly in a playground in xcode
-
 
 class ViewController: UIViewController {
-    // start in middle of screen
+    
+    // make a circle that works on all size iphones
     let bounds = CGRect(x: 0, y: 0, width: 300, height: 300)
-     var zeropt =   CGPoint(x:0,y:0)
-    var beginPt =   CGPoint(x:0,y:0)//CGPoint(x:self.view.width/2,y:0)
+    
+    // these are set to correct values in viewDidLoad
+    
+    var zeropt =   CGPoint(x:0,y:0)
+    var beginPt =   CGPoint(x:0,y:0)
     var endPt = CGPoint(x:0,y:0)
     
     var controlView: UIView!
-//    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-//        for t in touches {
-//            let location = t.location(in: self.view)
-//            touchesBegan = location
-//            print("began \(location)")
-//        }
-//    }
+
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        for t in touches {
+            let location = t.location(in: self.view)
+            endPt = location
+            buildview()
+        }
+    }
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         for t in touches {
             let location = t.location(in: self.view)
             endPt = location
-            let dx = beginPt.x - endPt.x
-            let dy = beginPt.y - endPt.y
-            let distance = hypotf(Float(dx), Float(dy))
-            print("ended \(location) distance \(distance)")
             buildview()
         }
     }
-    func pointToGPSLocation(_ p:CGPoint) -> CGPoint{
-        //running +-10 around 0 0 in CLLocation
-        
-        let lat = p.x/self.view.frame.width * 20 - 10
-        let lon = p.y/self.view.frame.height * 20 - 10
-        return CGPoint(x: lat, y: lon)
-            
-            //CLLocation(latitude: CLLocationDegrees(lat), longitude: CLLocationDegrees(lon))
-    }
-    
+
+
     func buildview() {
-        // sample coords:
-        let pt1 = pointToGPSLocation(beginPt)// CLLocation(latitude: 50.405018, longitude: 8.437500)
-        let pt2 = pointToGPSLocation(endPt)//(latitude:51.339802, longitude: 12.403340)
-        
+        // the last place we touched is in "endPt", the center of circle is "beginPt"
+        let pt1 = BobStuff.IOS.pointToGPSLocation(beginPt,frame:self.view.frame)
+        let pt2 = BobStuff.IOS.pointToGPSLocation(endPt,frame:self.view.frame)
         //checked with http://stackoverflow.com/questions/3809337/calculating-bearing-between-two-cllocationcoordinate2ds
         
-        let bear = LYNQ.OSIndependent.bearingBetweenTwoPoints(point1: pt1, point2: pt2)// radians 1.186606778309468
-        //let dist = LYNQ.OSIndependent.distanceHaversine(point1: pt1,point2: pt2)
         
+        let bear = BobStuff.Kore.bearingBetweenTwoPoints(point1: pt1, point2: pt2)
+
+        
+        // the Haversine method is no longer used here   
+        // let dist = BobStuff.Kore.distanceHaversine(point1: pt1,point2: pt2)
+        
+        let distance = BobStuff.Kore.distancePlain(point1: pt1,point2: pt2)
         controlView?.removeFromSuperview()
-        let dx = pt1.x - pt2.x
-        let dy = pt1.y - pt2.y
-        let distance = hypotf(Float(dx), Float(dy))
-        controlView = LYNQ.OSIndependent.makeView("bob",String(format:"%0.2fm %0.2fdeg",distance,bear),CGFloat(bear),bounds,10,25,40,.black,.white)        // paste smak in center
+        
+        controlView = BobStuff.Kore.makeView("bob",String(format:"%0.2fm ",distance),CGFloat(bear),bounds,10,25,40,.black,.white)        // paste smak in center
         controlView.center = self.view.center
         self.view.addSubview(controlView)
         
@@ -217,8 +220,8 @@ class ViewController: UIViewController {
         
         zeropt = CGPoint(x: bounds.origin.x + bounds.width/2,y:bounds.origin.y+bounds.height/2)
         
-         beginPt =   CGPoint(x:self.view.frame.width/2,y:self.view.frame.height/2)
-         endPt = beginPt
+        beginPt =   CGPoint(x:self.view.frame.width/2,y:self.view.frame.height/2)
+        endPt = beginPt
         
         // Do any additional setup after loading the view, typically from a nib.
         buildview()

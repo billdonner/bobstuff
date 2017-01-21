@@ -1,6 +1,6 @@
 //
 //  AppDelegate.swift
-//  lynq
+//  BobStuff
 //
 //  Created by bill donner on 1/20/17.
 //  Copyright © 2017 billdonner. All rights reserved.
